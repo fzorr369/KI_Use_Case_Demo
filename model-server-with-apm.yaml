@@ -1,0 +1,49 @@
+apiVersion: ai.sap.com/v1alpha1
+kind: ServingTemplate
+metadata:
+  # Der Name des Executable, muss in Ihrer SAP AI Core Instanz eindeutig sein
+  name: predictive-maintenance-server-v1
+  annotations:
+    scenarios.ai.sap.com/name: "predictive-maintenance-usecase"
+    scenarios.ai.sap.com/description: "Full Lifecycle Model Serving for Predictive Maintenance with Proactive Monitoring"
+    executables.ai.sap.com/name: "apm-monitoring-server"
+    executables.ai.sap.com/description: "full cycle model serving for predictive maintenance with proactive monitoring"
+  labels:
+    scenarios.ai.sap.com/id: "predictive-maintenance-v3"
+    ai.sap.com/version: "1.0.0"
+spec:
+  # Es werden keine Input-Artefakte benötigt, da das Modell von S3 geladen wird.
+  inputs: {}
+  template:
+    apiVersion: "serving.kserve.io/v1beta1"
+    metadata:
+      annotations: |
+        autoscaling.knative.dev/metric: concurrency
+        autoscaling.knative.dev/target: 1
+        autoscaling.knative.dev/targetBurstCapacity: 0
+      labels: |
+        ai.sap.com/resourcePlan: starter # Definiert die Rechenleistung
+    spec: |
+      predictor:
+        imagePullSecrets:
+          # Name des Secrets für den Zugriff auf Ihre Docker Registry
+          - name: cred-docker-tli 
+        minReplicas: 1 
+        containers:
+        - name: kserve-container
+          # Der Name Ihres Docker-Images
+          image: "docker.io/0tobi0/model-server-alert:02" 
+          ports:
+            # Der Port muss nicht zwangsläufig freigegeben werden, wenn nur die Schleife läuft,
+            # aber es ist eine gute Praxis, ihn zu definieren.
+            - containerPort: 9001 
+              protocol: TCP
+          # WICHTIG: Dieses Kommando startet die proaktive Monitoring-Schleife
+          command: ["python", "-u", "/app/src/main.py"]
+          
+          # Lädt alle Werte aus dem Secret 'apm-aws-creds' als Umgebungsvariablen.
+          # Stellen Sie sicher, dass dieses Secret sowohl die APM- als auch die AWS-Credentials enthält
+          # und dass alle Werte Base64-kodiert sind.
+          envFrom:
+            - secretRef:
+                name: aws-new-apm
